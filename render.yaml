@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: rag-qa
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: DEMO_USERNAME
+        value: demo
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: REQUIRE_DEMO_AUTH
+        value: "true"
+      - key: DATA_DIR
+        value: /tmp/uploads
+      - key: CHROMA_PATH
+        value: /tmp/chroma_db

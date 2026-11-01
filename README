@@ -1,0 +1,87 @@
+# RAG Document Q&A
+
+Upload PDF documents and ask questions answered from their contents. The React
+frontend talks to a FastAPI backend. The backend extracts and chunks PDF text,
+embeds it locally with FastEmbed, stores vectors in ChromaDB, retrieves the
+three closest chunks, and asks Groq's API to answer using that context.
+Responses include source filenames and chunk numbers. The default generation
+model is configurable with `GROQ_MODEL`.
+
+## Run locally
+
+### Backend
+
+```powershell
+python -m venv venv
+venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Set `GROQ_API_KEY` in `.env` to a Groq API key. Groq's free access is subject
+to account and model rate limits, which can change; check your account's
+current [rate limits](https://console.groq.com/docs/rate-limits). Do not
+commit `.env` or expose this key in frontend settings.
+
+```powershell
+uvicorn main:app --app-dir src --reload --port 8000
+```
+
+The API docs are at `http://localhost:8000/docs`. When running locally, demo
+authentication is off unless `DEMO_PASSWORD` is set.
+
+### Frontend
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. The frontend uses `http://localhost:8000` by
+default during development. Set `VITE_API_URL` to override it.
+
+## Deploy: free single Render service
+
+The repository includes [`render.yaml`](./render.yaml) and a [`Dockerfile`](./Dockerfile)
+that build and serve the React frontend and FastAPI API from the same Render
+service and origin. This avoids a separate frontend host and CORS configuration.
+The Blueprint uses Render's Free web service with no persistent disk. Render's
+free service may sleep when idle, has resource and usage limits, and has an
+ephemeral filesystem. Uploaded PDFs and the ChromaDB index can be lost when
+the service sleeps, restarts, or is redeployed; upload the PDFs again after
+that happens. The app does not promise durable file storage on this free setup.
+Review [Render's free-instance limits](https://render.com/docs/free) before
+deploying.
+
+1. Push this project to a Git repository and create a Render Blueprint from it.
+2. When prompted for secret environment values, provide:
+   - `GROQ_API_KEY`: a Groq API key.
+   - `DEMO_PASSWORD`: a strong password to share privately with demo viewers.
+3. Once deployed, open the Render service URL. Sign in with username `demo`
+   and the configured password.
+4. Verify `/health` returns `{"status":"ok"}`, upload a test PDF, and ask a
+   question with a known answer. Re-upload documents if the service loses its
+   temporary files.
+
+The API requires HTTP Basic credentials for uploads, questions, document
+listing, and deletion when `REQUIRE_DEMO_AUTH=true`. `/health` remains public
+for the host's health check. The Vercel site itself is public; do not post the
+Render URL is publicly reachable, so do not post the demo password on the
+public resume. Anyone who receives it can use the shared Groq API quota. Keep
+`GROQ_API_KEY` only in Render's secret environment variables and monitor your
+provider limits.
+
+## Grounding and accuracy
+
+The default retrieval configuration uses 800-character chunks with 150
+characters of overlap and supplies the top three matches to the model. The
+prompt requests answers only from those chunks and asks the model to say when
+the context is insufficient. This helps ground answers, but does not guarantee
+that every answer is correct or that a citation fully supports every claim.
+Accuracy should be evaluated with representative questions and known answers
+from the documents you plan to demonstrate.
+
+Uploaded PDFs and the local ChromaDB database are user data. They are excluded
+from source control. On Render Free, they are temporary and can be lost when
+the service sleeps, restarts, or is redeployed.
